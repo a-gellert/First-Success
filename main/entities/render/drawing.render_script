@@ -1,8 +1,0 @@
-function init(self)
-	self.points = {}
-end
-
-
-function update(self)
-	render.disable_state(render.STATE_CULL_FACE)
-end

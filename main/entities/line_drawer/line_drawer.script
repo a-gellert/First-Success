@@ -14,8 +14,9 @@ local Line = require("main.entities.line.line")
 
 -- Свойства компонента (аналог полей в инспекторе Unity)
 go.property("resolution", 10)         -- RESOLUTION из юнити (минимальная дистанция для новой точки)
-go.property("line_width", 6)         -- Ширина меша линии
-go.property("scale_collider", 3)      -- scaleCollider из юнити (радиус коллайдера)
+go.property("line_width", 12)         -- Ширина меша линии
+go.property("scale_collider", 6)      -- scaleCollider из юнити (радиус коллайдера)
+go.property("smooth_iterations", 1)   -- Количество итераций сглаживания кривой (0 - без сглаживания, 1-2 - сглаженная линия)
 go.property("camera_id", hash("/camera"))
 
 function init(self)
@@ -49,7 +50,7 @@ function on_input(self, action_id, action)
 
 		-- Создаем новый GameObject линии через фабрику (_linePrefab)
 		local line_id = factory.create("#line_mesh_factory", vmath.vector3(0, 0, 0))
-		self.current_line = Line.new(line_id, vmath.vector3(0, 0, 0), self.line_width, self.scale_collider, self.resolution)
+		self.current_line = Line.new(line_id, vmath.vector3(0, 0, 0), self.line_width, self.scale_collider, self.resolution, self.smooth_iterations)
 
 		-- Сразу регистрируем начальную точку линии
 		self.current_line:set_position(mouse_pos)
