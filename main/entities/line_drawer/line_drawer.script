@@ -23,15 +23,34 @@ function init(self)
 	-- _cam = Camera.main (сохраняем получение камеры через orthographic.camera)
 	msg.post(".", "acquire_input_focus")
 
+	-- Включаем автоматический зум камеры (automatic_zoom), чтобы игровое поле (320x480)
+	-- корректно и пропорционально масштабировалось под любые разрешения и соотношения сторон экрана
+	pcall(camera.set_automatic_zoom, self.camera_id, true)
+	timer.delay(0.1, false, function()
+		pcall(camera.set_automatic_zoom, self.camera_id, true)
+	end)
+
 	-- private Line _currentLine;
 	self.current_line = nil
 	self.is_drawing = false
 end
 
--- Вспомогательная функция: Vector2 mousePos = _cam.ScreenToWorldPoint(Input.mousePosition);
-local function screen_to_world(self, screen_x, screen_y)
-	if not screen_x or not screen_y then return nil end
-	local wpos = camera.screen_to_world(self.camera_id, vmath.vector3(screen_x, screen_y, 0))
+-- Вспомогательная функция преобразования экранных координат в мировые
+-- ВАЖНО: camera.screen_to_world ожидает реальные координаты окна (screen space),
+-- которые находятся в action.screen_x и action.screen_y.
+-- action.x и action.y привязаны к виртуальному display.width/height и при изменении разрешения дают смещение!
+local function screen_to_world(self, action)
+	if not action then return nil end
+	local sx = action.screen_x or action.x
+	local sy = action.screen_y or action.y
+	if not sx or not sy then return nil end
+
+	local wpos = camera.screen_to_world(self.camera_id, vmath.vector3(sx, sy, 0))
+	if not wpos and self.camera_id ~= nil then
+		-- Fallback на первую активную камеру
+		wpos = camera.screen_to_world(nil, vmath.vector3(sx, sy, 0))
+	end
+
 	if wpos then
 		wpos.z = 0.5
 	end
@@ -39,8 +58,8 @@ local function screen_to_world(self, screen_x, screen_y)
 end
 
 function on_input(self, action_id, action)
-	-- Получаем координаты курсора в мире (аналог _cam.ScreenToWorldPoint(Input.mousePosition))
-	local mouse_pos = screen_to_world(self, action.x, action.y)
+	-- Получаем координаты курсора в мире через физические координаты окна (screen_x/screen_y)
+	local mouse_pos = screen_to_world(self, action)
 	if not mouse_pos then return end
 
 	-- 1. if (Input.GetMouseButtonDown(0))
