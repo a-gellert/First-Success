@@ -1,0 +1,110 @@
+-- main/entities/ball/ball.script
+local Line = require("main.entities.line.line")
+
+go.property("speed", 500000)
+
+local BALL_RADIUS = 10.0 -- Радиус сферы мяча из ball.go
+
+function init(self)
+	math.randomseed(os.time())
+
+	local angle = math.rad(math.random(30, 60))
+	local dir_x = math.random() > 0.5 and 1 or -1
+	local dir_y = math.random() > 0.5 and 1 or -1
+
+	self.dir = vmath.vector3(
+		math.cos(angle) * dir_x, 
+		math.sin(angle) * dir_y, 
+		0
+	)
+
+	self.is_launched = false
+end
+
+--- Проверка и обработка коллизий с линиями (аналог физического взаимодействия с EdgeCollider2D)
+local function check_line_collisions(self, dt)
+	local ball_pos = go.get_world_position()
+
+	-- Получаем текущую линейную скорость мяча
+	local ok, vel = pcall(go.get, "#collisionobject", "linear_velocity")
+	if not ok or not vel then return end
+
+	local speed = vmath.length(vel)
+	if speed < 1 then return end
+
+	-- Проверяем столкновения со всеми активными линиями
+	for _, line in ipairs(Line.active_lines) do
+		local points = line.collider_points
+		local count = #points
+
+		if count >= 2 then
+			local r_total = BALL_RADIUS + line.scale_collider
+			local r_total_sq = r_total * r_total
+
+			for i = 1, count - 1 do
+				local pA = points[i]
+				local pB = points[i + 1]
+
+				local ab = pB - pA
+				local ab_len_sq = ab.x * ab.x + ab.y * ab.y
+
+				if ab_len_sq > 0.0001 then
+					-- Проекция центра мяча на сегмент линии
+					local ap = ball_pos - pA
+					local t = (ap.x * ab.x + ap.y * ab.y) / ab_len_sq
+					if t < 0 then
+						t = 0
+					elseif t > 1 then
+						t = 1
+					end
+
+					local closest = pA + ab * t
+					local diff = ball_pos - closest
+					diff.z = 0
+					local dist_sq = diff.x * diff.x + diff.y * diff.y
+
+					-- Если расстояние меньше суммарного радиуса - произошло столкновение
+					if dist_sq < r_total_sq then
+						local dist = math.sqrt(dist_sq)
+						local normal
+
+						if dist > 0.0001 then
+							normal = diff * (1 / dist)
+						else
+							normal = vmath.vector3(-ab.y, ab.x, 0)
+							normal = vmath.normalize(normal)
+						end
+
+						-- Проверяем, что мяч движется навстречу нормали линии
+						local dot = vel.x * normal.x + vel.y * normal.y
+						if dot < 0 then
+							-- Идеально упругий отскок (restitution = 1.0)
+							local new_vel = vel - normal * (2 * dot)
+							pcall(go.set, "#collisionobject", "linear_velocity", new_vel)
+							vel = new_vel
+
+							-- Коррекция позиции для предотвращения застревания внутри линии
+							local penetration = r_total - dist
+							ball_pos = ball_pos + normal * (penetration + 0.5)
+							go.set_position(ball_pos)
+						end
+					end
+				end
+			end
+		end
+	end
+end
+
+function update(self, dt)
+	if not self.is_launched then
+		-- Прикладываем единовременную силу в направлении вектора
+		msg.post("#collisionobject", "apply_force", {
+			force = self.dir * self.speed,
+			position = go.get_world_position()
+		})
+		self.is_launched = true
+	else
+		-- Проверка коллизий с нарисованными линиями
+		check_line_collisions(self, dt)
+	end
+end

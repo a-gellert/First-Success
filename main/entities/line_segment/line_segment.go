@@ -1,0 +1,27 @@
+components {
+  id: "line_segment"
+  component: "/main/entities/line_segment/line_segment.script"
+}
+embedded_components {
+  id: "collisionobject"
+  type: "collisionobject"
+  data: "type: COLLISION_OBJECT_TYPE_STATIC\n"
+  "mass: 0.0\n"
+  "friction: 0.0\n"
+  "restitution: 1.0\n"
+  "group: \"line\"\n"
+  "mask: \"ball\"\n"
+  "embedded_collision_shape {\n"
+  "  shapes {\n"
+  "    shape_type: TYPE_SPHERE\n"
+  "    position {\n"
+  "    }\n"
+  "    rotation {\n"
+  "    }\n"
+  "    index: 0\n"
+  "    count: 1\n"
+  "  }\n"
+  "  data: 4.0\n"
+  "}\n"
+  ""
+}

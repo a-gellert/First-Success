@@ -1,0 +1,76 @@
+-- main/entities/line_drawer/line_drawer.script
+-- Порт DrawManager из Unity:
+-- public class DrawManager : MonoBehaviour
+-- {
+--     private Camera _cam;
+--     [SerializeField] private Line _linePrefab;
+--     public const float RESOLUTION = .1f;
+--     private Line _currentLine;
+--     ...
+-- }
+
+local camera = require("orthographic.camera")
+local Line = require("main.entities.line.line")
+
+-- Свойства компонента (аналог полей в инспекторе Unity)
+go.property("resolution", 10)         -- RESOLUTION из юнити (минимальная дистанция для новой точки)
+go.property("line_width", 6)         -- Ширина меша линии
+go.property("scale_collider", 3)      -- scaleCollider из юнити (радиус коллайдера)
+go.property("camera_id", hash("/camera"))
+
+function init(self)
+	-- _cam = Camera.main (сохраняем получение камеры через orthographic.camera)
+	msg.post(".", "acquire_input_focus")
+
+	-- private Line _currentLine;
+	self.current_line = nil
+	self.is_drawing = false
+end
+
+-- Вспомогательная функция: Vector2 mousePos = _cam.ScreenToWorldPoint(Input.mousePosition);
+local function screen_to_world(self, screen_x, screen_y)
+	if not screen_x or not screen_y then return nil end
+	local wpos = camera.screen_to_world(self.camera_id, vmath.vector3(screen_x, screen_y, 0))
+	if wpos then
+		wpos.z = 0.5
+	end
+	return wpos
+end
+
+function on_input(self, action_id, action)
+	-- Получаем координаты курсора в мире (аналог _cam.ScreenToWorldPoint(Input.mousePosition))
+	local mouse_pos = screen_to_world(self, action.x, action.y)
+	if not mouse_pos then return end
+
+	-- 1. if (Input.GetMouseButtonDown(0))
+	--    _currentLine = Instantiate(_linePrefab, mousePos, Quaternion.identity);
+	if action_id == hash("touch") and action.pressed then
+		self.is_drawing = true
+
+		-- Создаем новый GameObject линии через фабрику (_linePrefab)
+		local line_id = factory.create("#line_mesh_factory", vmath.vector3(0, 0, 0))
+		self.current_line = Line.new(line_id, vmath.vector3(0, 0, 0), self.line_width, self.scale_collider, self.resolution)
+
+		-- Сразу регистрируем начальную точку линии
+		self.current_line:set_position(mouse_pos)
+
+	-- 2. if (Input.GetMouseButton(0))
+	--    _currentLine.SetPosition(mousePos);
+	-- В Defold перемещение мыши при зажатой кнопке передается с action_id == nil (десктоп) или hash("touch") (тач/веб)
+	elseif (action_id == nil or action_id == hash("touch")) and self.is_drawing and not action.released then
+		if self.current_line then
+			self.current_line:set_position(mouse_pos)
+		end
+
+	-- 3. При отпускании мыши/тача завершаем рисование текущей линии
+	elseif action_id == hash("touch") and action.released and self.is_drawing then
+		self.is_drawing = false
+		if self.current_line then
+			-- Если нарисовано меньше 2 точек, полноценный сегмент не сформирован - удаляем
+			if #self.current_line.points < 2 then
+				self.current_line:destroy()
+			end
+			self.current_line = nil
+		end
+	end
+end

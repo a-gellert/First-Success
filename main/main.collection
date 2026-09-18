@@ -1,0 +1,18 @@
+name: "main"
+instances {
+  id: "walls"
+  prototype: "/main/entities/walls/walls.go"
+}
+instances {
+  id: "ball"
+  prototype: "/main/entities/ball/ball.go"
+}
+instances {
+  id: "camera"
+  prototype: "/orthographic/camera.go"
+}
+instances {
+  id: "line_drawer"
+  prototype: "/main/entities/line_drawer/line_drawer.go"
+}
+scale_along_z: 0

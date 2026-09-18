@@ -1,0 +1,31 @@
+[bootstrap]
+main_collection = /main/main.collectionc
+
+[script]
+shared_state = 1
+
+[display]
+width = 320
+height = 480
+high_dpi = 1
+
+[android]
+input_method = HiddenInputField
+
+[html5]
+scale_mode = stretch
+wasm_streaming = 1
+show_fullscreen_button = 0
+show_made_with_defold = 0
+show_console_banner = 0
+
+[project]
+title = First Success
+dependencies#0 = https://github.com/defold/extension-poki-sdk/archive/refs/heads/main.zip
+dependencies#1 = https://github.com/Insality/druid/archive/refs/tags/1.3.0.zip
+dependencies#2 = https://github.com/britzl/defold-orthographic/archive/refs/tags/3.6.3.zip
+
+[physics]
+gravity_y = 0.0
+debug = 1
+
