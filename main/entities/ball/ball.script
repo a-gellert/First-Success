@@ -1,7 +1,6 @@
 -- main/entities/ball/ball.script
 local Line = require("main.entities.line.line")
-
-go.property("speed", 500000)
+local ball_config = require("main.entities.ball.ball_config")
 
 local BALL_RADIUS = 10.0 -- Радиус сферы мяча из ball.go
 
@@ -12,13 +11,34 @@ function init(self)
 	local dir_x = math.random() > 0.5 and 1 or -1
 	local dir_y = math.random() > 0.5 and 1 or -1
 
-	self.dir = vmath.vector3(
+	self.dir = vmath.normalize(vmath.vector3(
 		math.cos(angle) * dir_x, 
 		math.sin(angle) * dir_y, 
 		0
-	)
+	))
 
 	self.is_launched = false
+end
+
+--- Поддержание строго постоянной скорости мяча
+local function maintain_constant_speed(self)
+	local ok, vel = pcall(go.get, "#collisionobject", "linear_velocity")
+	if not ok or not vel then return end
+
+	local target_speed = ball_config.get_speed()
+	local current_speed = vmath.length(vel)
+
+	if current_speed > 0.001 then
+		-- Нормализуем текущее направление движения и умножаем на заданную скорость
+		local dir = vmath.normalize(vel)
+		self.dir = dir
+		local new_vel = dir * target_speed
+		pcall(go.set, "#collisionobject", "linear_velocity", new_vel)
+	elseif self.is_launched then
+		-- Если скорость упала до 0 (например, застрял в углу), возобновляем движение
+		local new_vel = self.dir * target_speed
+		pcall(go.set, "#collisionobject", "linear_velocity", new_vel)
+	end
 end
 
 --- Проверка и обработка коллизий с линиями (аналог физического взаимодействия с EdgeCollider2D)
@@ -31,6 +51,8 @@ local function check_line_collisions(self, dt)
 
 	local speed = vmath.length(vel)
 	if speed < 1 then return end
+
+	local target_speed = ball_config.get_speed()
 
 	-- Проверяем столкновения со всеми активными линиями
 	for _, line in ipairs(Line.active_lines) do
@@ -78,10 +100,12 @@ local function check_line_collisions(self, dt)
 						-- Проверяем, что мяч движется навстречу нормали линии
 						local dot = vel.x * normal.x + vel.y * normal.y
 						if dot < 0 then
-							-- Идеально упругий отскок (restitution = 1.0)
-							local new_vel = vel - normal * (2 * dot)
+							-- Идеально упругий отскок с сохранением заданной скорости
+							local new_dir = vmath.normalize(vel - normal * (2 * dot))
+							local new_vel = new_dir * target_speed
 							pcall(go.set, "#collisionobject", "linear_velocity", new_vel)
 							vel = new_vel
+							self.dir = new_dir
 
 							-- Коррекция позиции для предотвращения застревания внутри линии
 							local penetration = r_total - dist
@@ -97,14 +121,22 @@ end
 
 function update(self, dt)
 	if not self.is_launched then
-		-- Прикладываем единовременную силу в направлении вектора
-		msg.post("#collisionobject", "apply_force", {
-			force = self.dir * self.speed,
-			position = go.get_world_position()
-		})
+		-- Непосредственно задаем начальную скорость через linear_velocity из модуля конфигурации
+		local initial_vel = self.dir * ball_config.get_speed()
+		local ok = pcall(go.set, "#collisionobject", "linear_velocity", initial_vel)
+		if not ok then
+			-- Fallback: если прямое задание velocity не сработало
+			msg.post("#collisionobject", "apply_force", {
+				force = self.dir * (ball_config.get_speed() * 100),
+				position = go.get_world_position()
+			})
+		end
 		self.is_launched = true
 	else
-		-- Проверка коллизий с нарисованными линиями
+		-- 1. Проверка коллизий с нарисованными линиями
 		check_line_collisions(self, dt)
+
+		-- 2. Гарантируем строго постоянную скорость мяча на каждом кадре
+		maintain_constant_speed(self)
 	end
 end
